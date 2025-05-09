@@ -1,0 +1,235 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Valuta i Docenti</title>
+    <style>
+        body {
+            font-family: 'Comic Sans MS', 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #fce4ec;
+            text-align: center;
+        }
+        h1 {
+            color: #4db6ac;
+            font-size: 2.5em;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff3e0;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
+        .docente {
+            background: #b2dfdb;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .docente img {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            margin-right: 20px;
+            background: #ccc;
+        }
+        .form-group {
+            margin: 10px 0;
+        }
+        .form-group label {
+            display: block;
+            font-size: 1.1em;
+            color: #ff6f61;
+        }
+        .form-group input {
+            width: 60px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #a5d6a7;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.1em;
+        }
+        button:hover {
+            background-color: #81c784;
+        }
+        .emoji {
+            font-size: 1.2em;
+            margin-right: 5px;
+        }
+        .home-link {
+            color: #4db6ac;
+            text-decoration: none;
+            font-size: 1.1em;
+            display: inline-block;
+            margin-top: 20px;
+        }
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 Valuta i Docenti LiLu2 📚</h1>
+        <p>Dai un voto da 0 a 6 e aiutaci a scoprire i migliori prof!</p>
+        <div id="listaDocenti"></div>
+        <a href="index.html" class="home-link">Torna alla Home</a>
+    </div>
+
+    <script>
+        // Configurazione Firebase - SOSTITUISCI CON LE TUE CREDENZIALI
+        const firebaseConfig = {
+            apiKey: "TUA_API_KEY",
+            authDomain: "TUO_PROGETTO.firebaseapp.com",
+            projectId: "TUO_PROGETTO",
+            storageBucket: "TUO_PROGETTO.appspot.com",
+            messagingSenderId: "TUO_SENDER_ID",
+            appId: "TUO_APP_ID"
+        };
+
+        // Inizializza Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Lista di 20 docenti (personalizza i nomi qui)
+        const docenti = [
+            { id: 'docente1', nome: 'Prof. Rossi' },
+            { id: 'docente2', nome: 'Prof. Bianchi' },
+            { id: 'docente3', nome: 'Prof. Verdi' },
+            { id: 'docente4', nome: 'Prof. Gialli' },
+            { id: 'docente5', nome: 'Prof. Neri' },
+            { id: 'docente6', nome: 'Prof. Blu' },
+            { id: 'docente7', nome: 'Prof. Rosa' },
+            { id: 'docente8', nome: 'Prof. Viola' },
+            { id: 'docente9', nome: 'Prof. Arancio' },
+            { id: 'docente10', nome: 'Prof. Grigi' },
+            { id: 'docente11', nome: 'Prof. Marrone' },
+            { id: 'docente12', nome: 'Prof. Celeste' },
+            { id: 'docente13', nome: 'Prof. Magenta' },
+            { id: 'docente14', nome: 'Prof. Turchese' },
+            { id: 'docente15', nome: 'Prof. Oro' },
+            { id: 'docente16', nome: 'Prof. Argento' },
+            { id: 'docente17', nome: 'Prof. Corallo' },
+            { id: 'docente18', nome: 'Prof. Smeraldo' },
+            { id: 'docente19', nome: 'Prof. Zaffiro' },
+            { id: 'docente20', nome: 'Prof. Perla' }
+        ];
+
+        // Genera il form per ogni docente
+        const listaDocenti = document.getElementById('listaDocenti');
+        docenti.forEach(docente => {
+            const div = document.createElement('div');
+            div.className = 'docente';
+            div.innerHTML = `
+                <img src="images/${docente.id}.jpg" alt="Foto ${docente.nome}">
+                <div>
+                    <h2>${docente.nome}</h2>
+                    <div class="form-group">
+                        <label><span class="emoji">🎤</span>Doti Oratorie</label>
+                        <input type="number" min="0" max="6" id="${docente.id}-oratorie" required>
+                    </div>
+                    <div class="form-group">
+                        <label><span class="emoji">😄</span>Simpatia</label>
+                        <input type="number" min="0" max="6" id="${docente.id}-simpatia" required>
+                    </div>
+                    <div class="form-group">
+                        <label><span class="emoji">📖</span>Migliori Aneddoti</label>
+                        <input type="number" min="0" max="6" id="${docente.id}-aneddoti" required>
+                    </div>
+                    <div class="form-group">
+                        <label><span class="emoji">😂</span>Più Divertente</label>
+                        <input type="number" min="0" max="6" id="${docente.id}-divertente" required>
+                    </div>
+                    <div class="form-group">
+                        <label><span class="emoji">🧠</span>Saggezza</label>
+                        <input type="number" min="0" max="6" id="${docente.id}-saggezza" required>
+                    </div>
+                    <button onclick="inviaValutazione('${docente.id}')">Invia Valutazione</button>
+                </div>
+            `;
+            listaDocenti.appendChild(div);
+        });
+
+        // Funzione per inviare la valutazione
+        async function inviaValutazione(docenteId) {
+            const dotiOratorie = parseInt(document.getElementById(`${docenteId}-oratorie`).value);
+            const simpatia = parseInt(document.getElementById(`${docenteId}-simpatia`).value);
+            const aneddoti = parseInt(document.getElementById(`${docenteId}-aneddoti`).value);
+            const divertente = parseInt(document.getElementById(`${docenteId}-divertente`).value);
+            const saggezza = parseInt(document.getElementById(`${docenteId}-saggezza`).value);
+
+            if ([dotiOratorie, simpatia, aneddoti, divertente, saggezza].some(v => isNaN(v) || v < 0 || v > 6)) {
+                alert('Inserisci voti validi (0-6)!');
+                return;
+            }
+
+            try {
+                await db.collection('valutazioni').add({
+                    docenteId,
+                    dotiOratorie,
+                    simpatia,
+                    aneddoti,
+                    divertente,
+                    saggezza,
+                    timestamp: new Date().toISOString()
+                });
+                alert('Valutazione inviata! Grazie! 😊');
+                document.querySelectorAll(`input[id^="${docenteId}-"]`).forEach(input => input.value = '');
+            } catch (error) {
+                alert('Errore: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

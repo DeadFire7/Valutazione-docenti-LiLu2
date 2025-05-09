@@ -1,0 +1,175 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Valutazione Docenti LiLu2</title>
+    <style>
+        body {
+            font-family: 'Comic Sans MS', 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #e0f7fa;
+            text-align: center;
+        }
+        h1 {
+            color: #ff6f61;
+            font-size: 3em;
+            text-shadow: 2px 2px #fff;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff3e0;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #a5d6a7;
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-size: 1.2em;
+            margin: 20px 0;
+        }
+        .btn:hover {
+            background-color: #81c784;
+        }
+        canvas {
+            margin: 20px 0;
+            max-width: 100%;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>🌟 Valutazione Docenti LiLu2 🌟</h1>
+        <p>Scopri i prof più amati e vota anche tu!</p>
+        <a href="valutazione.html" class="btn">Vai alla Valutazione</a>
+        <h2>Docenti Più Votati</h2>
+        <canvas id="graficoTopDocenti"></canvas>
+        <h2>Docenti Più Capaci</h2>
+        <canvas id="graficoCapaci"></canvas>
+    </div>
+
+    <script>
+        // Configurazione Firebase - SOSTITUISCI CON LE TUE CREDENZIALI
+        const firebaseConfig = {
+            apiKey: "TUA_API_KEY",
+            authDomain: "TUO_PROGETTO.firebaseapp.com",
+            projectId: "TUO_PROGETTO",
+            storageBucket: "TUO_PROGETTO.appspot.com",
+            messagingSenderId: "TUO_SENDER_ID",
+            appId: "TUO_APP_ID"
+        };
+
+        // Inizializza Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Carica i dati per i grafici
+        async function loadGrafici() {
+            const valutazioni = await db.collection('valutazioni').get();
+            const docenti = {};
+
+            valutazioni.forEach(doc => {
+                const data = doc.data();
+                const id = data.docenteId;
+                if (!docenti[id]) {
+                    docenti[id] = { total: 0, count: 0, oratorie: 0, saggezza: 0 };
+                }
+                const media = (data.dotiOratorie + data.simpatia + data.aneddoti + data.divertente + data.saggezza) / 5;
+                docenti[id].total += media;
+                docenti[id].count += 1;
+                docenti[id].oratorie += data.dotiOratorie;
+                docenti[id].saggezza += data.saggezza;
+            });
+
+            // Grafico Docenti Più Votati
+            const topDocenti = Object.keys(docenti).map(id => ({
+                id,
+                media: docenti[id].total / docenti[id].count
+            })).sort((a, b) => b.media - a.media).slice(0, 5);
+
+            new Chart(document.getElementById('graficoTopDocenti'), {
+                type: 'bar',
+                data: {
+                    labels: topDocenti.map(d => `Docente ${d.id.replace('docente', '')}`),
+                    datasets: [{
+                        label: 'Media Voti',
+                        data: topDocenti.map(d => d.media.toFixed(2)),
+                        backgroundColor: ['#ffccbc', '#b2dfdb', '#f8bbd0', '#c8e6c9', '#fff9c4']
+                    }]
+                },
+                options: { scales: { y: { beginAtZero: true, max: 6 } } }
+            });
+
+            // Grafico Docenti Più Capaci (doti oratorie + saggezza)
+            const capaci = Object.keys(docenti).map(id => ({
+                id,
+                media: (docenti[id].oratorie + docenti[id].saggezza) / (2 * docenti[id].count)
+            })).sort((a, b) => b.media - a.media).slice(0, 5);
+
+            new Chart(document.getElementById('graficoCapaci'), {
+                type: 'bar',
+                data: {
+                    labels: capaci.map(d => `Docente ${d.id.replace('docente', '')}`),
+                    datasets: [{
+                        label: 'Media Capacità',
+                        data: capaci.map(d => d.media.toFixed(2)),
+                        backgroundColor: ['#ffccbc', '#b2dfdb', '#f8bbd0', '#c8e6c9', '#fff9c4']
+                    }]
+                },
+                options: { scales: { y: { beginAtZero: true, max: 6 } } }
+            });
+        }
+
+        loadGrafici();
+    </script>
+</body>
+</html>
